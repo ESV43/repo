@@ -1,0 +1,206 @@
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, Button, Typography, Box } from '@/components/ui/card';
+
+const COLORS = ['Red', 'Blue', 'Green', 'Yellow'];
+const NUMBERS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+const SPECIAL_CARDS = ['Skip', 'Reverse', 'Draw Two'];
+const WILD_CARDS = ['Wild', 'Wild Draw Four'];
+
+const createDeck = (side) => {
+  let deck = [];
+  COLORS.forEach(color => {
+    NUMBERS.forEach(number => {
+      deck.push({ color, value: number, side });
+    });
+    SPECIAL_CARDS.forEach(special => {
+      deck.push({ color, value: special, side });
+      deck.push({ color, value: special, side });
+    });
+  });
+  WILD_CARDS.forEach(wild => {
+    for (let i = 0; i < 4; i++) {
+      deck.push({ color: 'Wild', value: wild, side });
+    }
+  });
+  return deck;
+};
+
+const shuffleDeck = (deck) => {
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  return deck;
+};
+
+const UnoFlipGame = () => {
+  const [deck, setDeck] = useState([]);
+  const [discardPile, setDiscardPile] = useState([]);
+  const [playerHand, setPlayerHand] = useState([]);
+  const [computerHand, setComputerHand] = useState([]);
+  const [currentPlayer, setCurrentPlayer] = useState('player');
+  const [currentColor, setCurrentColor] = useState('');
+  const [gameState, setGameState] = useState('playing');
+  const [gameSide, setGameSide] = useState('light');
+
+  useEffect(() => {
+    startNewGame();
+  }, []);
+
+  const startNewGame = () => {
+    const newDeck = shuffleDeck([...createDeck('light'), ...createDeck('dark')]);
+    const playerCards = newDeck.splice(0, 7);
+    const computerCards = newDeck.splice(0, 7);
+    const firstCard = newDeck.pop();
+    setDeck(newDeck);
+    setPlayerHand(playerCards);
+    setComputerHand(computerCards);
+    setDiscardPile([firstCard]);
+    setCurrentColor(firstCard.color);
+    setCurrentPlayer('player');
+    setGameState('playing');
+    setGameSide('light');
+  };
+
+  const canPlayCard = (card) => {
+    const topCard = discardPile[discardPile.length - 1];
+    return card.color === 'Wild' || 
+           card.color === currentColor || 
+           card.value === topCard.value ||
+           card.side !== gameSide;
+  };
+
+  const playCard = (card, index) => {
+    if (currentPlayer !== 'player' || !canPlayCard(card)) return;
+
+    let newPlayerHand = [...playerHand];
+    newPlayerHand.splice(index, 1);
+    setPlayerHand(newPlayerHand);
+
+    setDiscardPile([...discardPile, card]);
+    setCurrentColor(card.color === 'Wild' ? COLORS[Math.floor(Math.random() * COLORS.length)] : card.color);
+
+    if (card.side !== gameSide) {
+      setGameSide(card.side);
+    }
+
+    if (newPlayerHand.length === 0) {
+      setGameState('playerWin');
+    } else {
+      handleSpecialCard(card);
+      setCurrentPlayer('computer');
+      setTimeout(computerTurn, 1000);
+    }
+  };
+
+  const handleSpecialCard = (card) => {
+    switch (card.value) {
+      case 'Skip':
+        // Computer's turn is skipped
+        break;
+      case 'Reverse':
+        // In a two-player game, this acts like a Skip
+        break;
+      case 'Draw Two':
+        drawCards('computer', 2);
+        break;
+      case 'Wild Draw Four':
+        drawCards('computer', 4);
+        break;
+      default:
+        break;
+    }
+  };
+
+  const drawCards = (player, count) => {
+    const drawnCards = deck.slice(0, count);
+    const newDeck = deck.slice(count);
+    setDeck(newDeck);
+
+    if (player === 'player') {
+      setPlayerHand([...playerHand, ...drawnCards]);
+    } else {
+      setComputerHand([...computerHand, ...drawnCards]);
+    }
+  };
+
+  const computerTurn = () => {
+    const playableCards = computerHand.filter(canPlayCard);
+    if (playableCards.length > 0) {
+      const cardToPlay = playableCards[Math.floor(Math.random() * playableCards.length)];
+      const cardIndex = computerHand.indexOf(cardToPlay);
+      const newComputerHand = [...computerHand];
+      newComputerHand.splice(cardIndex, 1);
+      setComputerHand(newComputerHand);
+      setDiscardPile([...discardPile, cardToPlay]);
+      setCurrentColor(cardToPlay.color === 'Wild' ? COLORS[Math.floor(Math.random() * COLORS.length)] : cardToPlay.color);
+
+      if (cardToPlay.side !== gameSide) {
+        setGameSide(cardToPlay.side);
+      }
+
+      if (newComputerHand.length === 0) {
+        setGameState('computerWin');
+      } else {
+        handleSpecialCard(cardToPlay);
+        setCurrentPlayer('player');
+      }
+    } else {
+      drawCards('computer', 1);
+      setCurrentPlayer('player');
+    }
+  };
+
+  const renderCard = (card, index, isPlayable) => (
+    <Button 
+      key={index} 
+      onClick={() => playCard(card, index)} 
+      disabled={!isPlayable}
+      style={{ 
+        backgroundColor: card.color === 'Wild' ? 'black' : card.color,
+        color: card.color === 'Yellow' ? 'black' : 'white',
+        margin: '5px',
+        width: '60px',
+        height: '90px'
+      }}
+    >
+      {card.value}
+    </Button>
+  );
+
+  return (
+    <Box className="p-4">
+      <Typography variant="h4" className="mb-4">UNO Flip</Typography>
+      <Typography variant="h6" className="mb-2">Current Color: {currentColor}</Typography>
+      <Typography variant="h6" className="mb-2">Game Side: {gameSide}</Typography>
+      <Typography variant="h6" className="mb-4">Current Player: {currentPlayer}</Typography>
+      
+      <Box className="mb-4">
+        <Typography variant="h6" className="mb-2">Discard Pile:</Typography>
+        {discardPile.length > 0 && renderCard(discardPile[discardPile.length - 1], 'top', false)}
+      </Box>
+      
+      <Box className="mb-4">
+        <Typography variant="h6" className="mb-2">Your Hand:</Typography>
+        {playerHand.map((card, index) => renderCard(card, index, canPlayCard(card) && currentPlayer === 'player'))}
+      </Box>
+      
+      <Box className="mb-4">
+        <Typography variant="h6" className="mb-2">Computer's Hand: {computerHand.length} cards</Typography>
+      </Box>
+      
+      <Button onClick={() => drawCards('player', 1)} disabled={currentPlayer !== 'player'}>
+        Draw Card
+      </Button>
+      
+      {gameState !== 'playing' && (
+        <Box className="mt-4">
+          <Typography variant="h5">{gameState === 'playerWin' ? 'You Win!' : 'Computer Wins!'}</Typography>
+          <Button onClick={startNewGame} className="mt-2">New Game</Button>
+        </Box>
+      )}
+    </Box>
+  );
+};
+
+export default UnoFlipGame;
